@@ -96,7 +96,7 @@ void scanRFID() {
 bool isEncryptedCard(byte sak) {
   // Placeholder condition for identifying encrypted cards
   // This condition should be adjusted based on the specific card types you're dealing with
-  return sak == 0x20; // Example SAK value for a potentially encrypted card
+  return sak != 0x08; // Example SAK value for a potentially encrypted card
 }
 
 void displayNextUID() {
