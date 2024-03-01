@@ -4,140 +4,94 @@
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
 
-#define RST_PIN             9
-#define SS_PIN             10
-#define BUTTON_READ_PIN     8
-#define BUTTON_DISPLAY_PIN  7
-#define SCREEN_WIDTH      128
-#define SCREEN_HEIGHT      32
-#define OLED_RESET        -1
-#define DEBOUNCE_DELAY    200
+#define RST_PIN         9
+#define SS_PIN          10
+#define OLED_RESET      -1
+#define SCREEN_WIDTH    128
+#define SCREEN_HEIGHT   32
 
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 MFRC522 mfrc522(SS_PIN, RST_PIN);
-String storedUIDs[5];
-int currentUIDIndex = -1;
-int menuIndex = 0; // Index for menu navigation
+
+unsigned int tagCount = 0;
+String lastUID = "";
 
 void setup() {
   Serial.begin(9600);
   SPI.begin();
   mfrc522.PCD_Init();
-  pinMode(BUTTON_READ_PIN, INPUT_PULLUP);
-  pinMode(BUTTON_DISPLAY_PIN, INPUT_PULLUP);
-
-  if (!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
-    Serial.println(F("SSD1306 allocation failed"));
-    for (;;);
-  }
+  display.begin(SSD1306_SWITCHCAPVCC, 0x3C);
   display.clearDisplay();
   display.setTextSize(1);
   display.setTextColor(SSD1306_WHITE);
-  welcomeMessage();
+  display.setCursor(0,0);
+  display.println("Initializing...");
+  display.display();
+  delay(2000); // Show initializing message for 2 seconds
 }
 
 void loop() {
-  showMenu();
-  debounceAndOperate();
-}
-
-void debounceAndOperate() {
-  static unsigned long lastDebounceTime = 0;
-  static bool lastButtonState = LOW;
-  bool buttonState = digitalRead(BUTTON_READ_PIN);
-
-  if (buttonState != lastButtonState) {
-    lastDebounceTime = millis();
-  }
-
-  if ((millis() - lastDebounceTime) > DEBOUNCE_DELAY) {
-    if (buttonState == HIGH) {
-      if (menuIndex == 0) {
-        scanRFID();
-      } else if (menuIndex == 1) {
-        displayNextUID();
-      }
-    }
-  }
-  lastButtonState = buttonState;
-
-  // Cycle through menu options
-  if (digitalRead(BUTTON_DISPLAY_PIN) == HIGH) {
-    menuIndex = (menuIndex + 1) % 2; // Increase menuIndex to cycle through options
-    delay(DEBOUNCE_DELAY); // Simple delay for button debounce
-    showMenu();
-  }
-}
-
-void scanRFID() {
-  display.clearDisplay();
-  display.setCursor(0, 0);
-  display.print("Scanning...");
-  display.display();
-  
   if (!mfrc522.PICC_IsNewCardPresent() || !mfrc522.PICC_ReadCardSerial()) {
-    displayMessage("No Card Detected");
     return;
   }
+  
+  String uidStr = getUIDString();
+  if (uidStr != lastUID) {
+    lastUID = uidStr;
+    tagCount++;
+    updateDisplay(uidStr);
+  }
 
-  String uid = "";
+  mfrc522.PICC_HaltA();
+  mfrc522.PCD_StopCrypto1();
+}
+
+String getUIDString() {
+  String uidStr = "";
   for (byte i = 0; i < mfrc522.uid.size; i++) {
-    uid += String(mfrc522.uid.uidByte[i] < 0x10 ? "0" : "") + String(mfrc522.uid.uidByte[i], HEX);
+    uidStr += (mfrc522.uid.uidByte[i] < 0x10 ? "0" : "") + String(mfrc522.uid.uidByte[i], HEX);
   }
-  uid.toUpperCase();
-  if (currentUIDIndex < 4) {
-    storedUIDs[++currentUIDIndex] = uid;
-    displayMessage("Card Stored: " + uid);
-  } else {
-    displayMessage("Memory Full");
-  }
+  uidStr.toUpperCase();
+  return uidStr;
 }
 
-void displayNextUID() {
-  if (currentUIDIndex == -1) {
-    displayMessage("No Cards Stored");
-    return;
-  }
 
-  static int displayIndex = 0;
+
+void updateDisplay(const String& uid) {
+  display.clearDisplay(); // Clear the display for fresh update
+
+  // Display "RFID UID" as a title
+  display.setTextSize(1); // Normal 1:1 pixel scale
+  display.setCursor(0,0);
+  display.println("RFID UID");
+
+  // Draw a horizontal line to separate title from content
+  display.drawFastHLine(0, 9, SCREEN_WIDTH, SSD1306_WHITE);
+
+  // Check if UID needs scrolling or pagination
+  // For simplicity, let's assume it fits the display width for now
+  display.setTextSize(1); // Choose appropriate text size
+  display.setCursor(0, 12);
+  display.println(uid);
+
+  // Display the tag count at a fixed position to avoid overlap
+  display.setTextSize(1);
+  display.setCursor(0, SCREEN_HEIGHT - 8); // Adjust position as needed
+  display.print("Count: ");
+  display.println(tagCount);
+
+  display.display(); // Refresh the display with new data
+}
+
+
+void displayError(const String& message) {
   display.clearDisplay();
-  display.setCursor(0, 0);
-  display.print("UID: ");
+  display.setTextSize(1);
+  display.setCursor(0,0);
+  display.println("Error:");
+  display.setTextSize(1);
   display.setCursor(0, 10);
-  display.print(storedUIDs[displayIndex]);
-  display.display();
-
-  displayIndex = (displayIndex + 1) % (currentUIDIndex + 1);
-}
-
-void displayMessage(String message) {
-  display.clearDisplay();
-  display.setCursor(0, 0);
-  display.print(message);
-  display.display();
-  delay(2000);
-}
-
-void welcomeMessage() {
-  display.clearDisplay();
-  display.setCursor(0, 0);
-  display.print("RFID Reader Ready");
-  display.display();
-  delay(2000);
-}
-
-void showMenu() {
-  display.clearDisplay();
-  display.setCursor(0, 0);
-  if (menuIndex == 0) {
-    display.print(">Scan Card");
-    display.setCursor(0, 10);
-    display.print(" View UIDs");
-  } else if (menuIndex == 1) {
-    display.print(" Scan Card");
-    display.setCursor(0, 10);
-    display.print(">View UIDs");
-  }
+  display.println(message);
   display.display();
 }
 
