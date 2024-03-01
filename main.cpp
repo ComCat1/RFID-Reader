@@ -49,28 +49,21 @@ void loop() {
 }
 
 void displayMultiLayeredScanningAnimation() {
-  const int centerX = SCREEN_WIDTH / 2;
-  const int centerY = SCREEN_HEIGHT / 2;
-  const int maxRadius = sqrt(centerX * centerX + centerY * centerY); // To cover entire display
-  const int steps = 120; // For smooth full rotation
-  const int circleSteps = 20; // Number of steps before a circle completes its expansion
+  const int barWidth = SCREEN_WIDTH - 20; // Total width of the loading bar, with padding
+  const int barHeight = 8; // Height of the loading bar
+  const int startX = (SCREEN_WIDTH - barWidth) / 2; // Starting X position (centered)
+  const int startY = (SCREEN_HEIGHT - barHeight) / 2; // Starting Y position (centered)
+  const int steps = 120; // Number of steps to fill the loading bar
   const int delayTime = 20; // Milliseconds for each step
   
-  for (int i = 0; i < steps; i++) {
-    display.clearDisplay();
-    
-    // Draw expanding circles
-    for (int j = 0; j < maxRadius; j += maxRadius / circleSteps) {
-      int currentRadius = (i * maxRadius / steps + j) % maxRadius;
-      int brightness = max(1, 255 - (currentRadius * 255 / maxRadius)); // Fading effect
-      display.drawCircle(centerX, centerY, currentRadius, SSD1306_WHITE);
-    }
+  for (int i = 0; i <= steps; i++) {
+    int fillWidth = (i * barWidth) / steps; // Calculate current width to fill
 
-    // Draw sweeping radial line
-    float angle = radians((float)i / steps * 360);
-    int endX = centerX + maxRadius * cos(angle);
-    int endY = centerY + maxRadius * sin(angle);
-    display.drawLine(centerX, centerY, endX, endY, SSD1306_WHITE);
+    display.clearDisplay();
+    // Draw the border of the loading bar
+    display.drawRect(startX - 1, startY - 1, barWidth + 2, barHeight + 2, SSD1306_WHITE);
+    // Fill the loading bar based on the current step
+    display.fillRect(startX, startY, fillWidth, barHeight, SSD1306_WHITE);
 
     display.display();
     delay(delayTime);
@@ -79,6 +72,7 @@ void displayMultiLayeredScanningAnimation() {
   // Clear the display to prepare for showing the scanned data
   display.clearDisplay();
 }
+
 
 
 
