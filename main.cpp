@@ -39,12 +39,48 @@ void loop() {
   if (uidStr != lastUID) {
     lastUID = uidStr;
     tagCount++;
+    
+    displayMultiLayeredScanningAnimation(); // Play the improved scanning animation
     updateDisplay(uidStr);
   }
 
   mfrc522.PICC_HaltA();
   mfrc522.PCD_StopCrypto1();
 }
+
+void displayMultiLayeredScanningAnimation() {
+  const int centerX = SCREEN_WIDTH / 2;
+  const int centerY = SCREEN_HEIGHT / 2;
+  const int maxRadius = sqrt(centerX * centerX + centerY * centerY); // To cover entire display
+  const int steps = 120; // For smooth full rotation
+  const int circleSteps = 20; // Number of steps before a circle completes its expansion
+  const int delayTime = 20; // Milliseconds for each step
+  
+  for (int i = 0; i < steps; i++) {
+    display.clearDisplay();
+    
+    // Draw expanding circles
+    for (int j = 0; j < maxRadius; j += maxRadius / circleSteps) {
+      int currentRadius = (i * maxRadius / steps + j) % maxRadius;
+      int brightness = max(1, 255 - (currentRadius * 255 / maxRadius)); // Fading effect
+      display.drawCircle(centerX, centerY, currentRadius, SSD1306_WHITE);
+    }
+
+    // Draw sweeping radial line
+    float angle = radians((float)i / steps * 360);
+    int endX = centerX + maxRadius * cos(angle);
+    int endY = centerY + maxRadius * sin(angle);
+    display.drawLine(centerX, centerY, endX, endY, SSD1306_WHITE);
+
+    display.display();
+    delay(delayTime);
+  }
+
+  // Clear the display to prepare for showing the scanned data
+  display.clearDisplay();
+}
+
+
 
 String getUIDString() {
   String uidStr = "";
