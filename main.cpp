@@ -15,6 +15,7 @@ MFRC522 mfrc522(SS_PIN, RST_PIN);
 
 unsigned int tagCount = 0;
 String lastUID = "";
+bool isProtected = false; // Placeholder for protected status
 
 void setup() {
   Serial.begin(9600);
@@ -40,8 +41,9 @@ void loop() {
     lastUID = uidStr;
     tagCount++;
     
+    isProtected = checkIfProtected(); // Check if the card is protected
     displayMultiLayeredScanningAnimation(); // Play the improved scanning animation
-    updateDisplay(uidStr);
+    updateDisplay(uidStr, isProtected); // Update to include protection status
   }
 
   mfrc522.PICC_HaltA();
@@ -73,9 +75,6 @@ void displayMultiLayeredScanningAnimation() {
   display.clearDisplay();
 }
 
-
-
-
 String getUIDString() {
   String uidStr = "";
   for (byte i = 0; i < mfrc522.uid.size; i++) {
@@ -85,9 +84,22 @@ String getUIDString() {
   return uidStr;
 }
 
+bool checkIfProtected() {
+  MFRC522::MIFARE_Key key;
+  for (byte i = 0; i < 6; i++) key.keyByte[i] = 0xFF; // Use a common default key (0xFFFFFFFFFFFF)
 
+  // Attempt to authenticate block 0 (first block of sector 0) using Key A
+  MFRC522::StatusCode status = mfrc522.PCD_Authenticate(MFRC522::PICC_CMD_MF_AUTH_KEY_A, 1, &key, &(mfrc522.uid));
+  if (status == MFRC522::STATUS_OK) {
+    mfrc522.PICC_HaltA(); // Stop reading
+    mfrc522.PCD_StopCrypto1(); // Stop encryption on PCD
+    return false; // Authentication succeeded, so the card is likely not "protected" with a non-default key
+  } else {
+    return true; // Authentication failed, suggesting the card is protected or uses a different key
+  }
+}
 
-void updateDisplay(const String& uid) {
+void updateDisplay(const String& uid, bool isProtected) {
   display.clearDisplay(); // Clear the display for fresh update
 
   // Display "RFID UID" as a title
@@ -98,13 +110,17 @@ void updateDisplay(const String& uid) {
   // Draw a horizontal line to separate title from content
   display.drawFastHLine(0, 9, SCREEN_WIDTH, SSD1306_WHITE);
 
-  // Check if UID needs scrolling or pagination
-  // For simplicity, let's assume it fits the display width for now
+  // Display the UID
   display.setTextSize(1); // Choose appropriate text size
   display.setCursor(0, 12);
   display.println(uid);
 
-  // Display the tag count at a fixed position to avoid overlap
+  // Display protection status
+  display.setCursor(0, 24); // Adjust Y position as needed
+  display.print("Protected: ");
+  display.println(isProtected ? "Yes" : "No");
+
+  // Display the tag count at the bottom
   display.setTextSize(1);
   display.setCursor(0, SCREEN_HEIGHT - 8); // Adjust position as needed
   display.print("Count: ");
@@ -112,7 +128,6 @@ void updateDisplay(const String& uid) {
 
   display.display(); // Refresh the display with new data
 }
-
 
 void displayError(const String& message) {
   display.clearDisplay();
@@ -124,5 +139,6 @@ void displayError(const String& message) {
   display.println(message);
   display.display();
 }
+
 
 
